@@ -81,9 +81,9 @@ def renameVariables(actionsThen, actionsElse):
 if len(sys.argv) == 2:
     file_input = str(sys.argv[1])
 else:
-    print "This program takes a .ll or .c file in input,"
-    print "it should be used like:"
-    print "python redundant-conditionals.py example.ll"
+    print("This program takes a .ll or .c file in input,")
+    print("it should be used like:")
+    print("python redundant-conditionals.py example.ll")
     exit(1)
 
 '''We check the input file'''
@@ -97,10 +97,10 @@ elif file_input[-2:] == ".c":
         fname = "lol_1664.ll"
         isll = False
     else:
-        print "Error: No such .c file"
+        print("Error: No such .c file")
         exit(1)
 else:
-    print "The input must be a .ll or a .c file"
+    print("The input must be a .ll or a .c file")
     exit(1)
 
 '''Opening the file and getting the content'''
@@ -110,18 +110,18 @@ try:
         content = f.readlines()
 # Handling the possible errors when opening a file
 except IOError as e:
-    print "Error: No such .ll file"
+    print("Error: No such .ll file")
     exit(1)
 except ValueError:
-    print "Could not convert data to an integer."
+    print("Could not convert data to an integer.")
     exit(1)
 except:
-    print "Unexpected error:", sys.exc_info()[0]
+    print("Unexpected error:", sys.exc_info()[0])
     exit(1)
 content = [x.strip("\n") for x in content]
 
 '''Delete the .ll file created in the process if the input is a c file'''
-if not (isll):
+if not isll:
     os.system("rm lol_1664.ll")
 
 '''Finding identical if/then branches'''
@@ -159,27 +159,25 @@ while nbLine < len(content):
         nbLine += 1
 
 if nbOfIdenticalLines == 0:
-    print "There are no identical lines in the if/else structure"
+    print("There are no identical lines in the if/else structure")
 elif nbOfIdenticalLines == 1:
-    print "There is only one identical line"
+    print("There is only one identical line")
     x = redundancyFound[0]
-    print "Line", x[1]+1, "&", x[2]+1, ": ", x[0]
+    print("Line {} & {} : {}".format(x[1]+1,x[2]+1, x[0]))
 else:
-    print "There is a total of", nbOfIdenticalLines, "identical lines"
+    print("There is a total of {} identical lines".format(nbOfIdenticalLines))
     for x in redundancyFound:
-        print "Line", x[1]+1, "&", x[2]+1, ": ", x[0]
+        print("Line {} & {} : {}".format(x[1] + 1, x[2] + 1, x[0]))
 
 '''Debugging functions'''
-
-
 ########################################################
 
 # To print the actions with if.then
 def printActionsThen():
     for i in range(len(actionsIfThen)):
         for action in actionsIfThen[i]:
-            print action
-        print ""
+            print(action)
+        print("")
     return
 
 
@@ -187,6 +185,6 @@ def printActionsThen():
 def printActionsElse():
     for i in range(len(actionsIfElse)):
         for action in actionsIfElse[i]:
-            print action
-        print ""
+            print(action)
+        print("")
     return
