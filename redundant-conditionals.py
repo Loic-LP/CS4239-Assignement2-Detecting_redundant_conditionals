@@ -13,112 +13,180 @@
 # This program should be used with a .ll file like this:
 # python redundant-conditionals.py example.ll
 
-import sys,os
+import sys
+import os
 
-if len(sys.argv)==2 :
-    file_input=str(sys.argv[1])
-else :
+'''Defining the different variables'''
+########################################################
+
+# Number of identical line we have detected so far
+nbOfIdenticalLines = 0
+# The table of block of instructions executed in the different if.then branches
+actionsIfThen = []
+# Same thing for the if.else branches
+actionsIfElse = []
+# The line we are currently looking at
+nbLine = 0
+# Table with all the redundant conditionals we found so far
+redundancyFound = []  # (str instruction, int line in if.then, int line in if.else)
+
+'''Defining a few functions'''
+########################################################
+
+'''This function test if we have the same instruction in the 2 branches'''
+
+
+# actionsThen is a table of the instruction executed in the then branch
+# actionsElse is the same for the else branch
+# and we have the lines of the start of each block
+def testIdentical(actionsThen, actionsElse, lineFirstActionThen, lineFirstActionElse):
+    for indexThen, instruction in enumerate(actionsThen):
+        # If we have the same line we simply print the line
+        if instruction in actionsElse:
+            indexElse = actionsElse.index(instruction)
+            errorLineThen = lineFirstActionThen + indexThen
+            errorLineElse = lineFirstActionElse + indexElse
+            global redundancyFound
+            redundancyFound += [(instruction, errorLineThen, errorLineElse)]
+            global nbOfIdenticalLines
+            nbOfIdenticalLines += 1
+
+
+'''This function rename the variables with the same name if it has the same assignment'''
+
+
+def renameVariables(actionsThen, actionsElse):
+    for indexThen, instruction in enumerate(actionsThen):
+        # We first find the assignment instruction in the if.then block
+        if "=" in instruction:
+            [variable1, assignment1] = instruction.split(" = ")
+            for indexElse, instruction2 in enumerate(actionsElse):
+                # We look for an assignment in the if.else block
+                if "=" in instruction2:
+                    [variable2, assignment2] = instruction2.split(" = ")
+                    # If we have the same assignment then we rename the variables
+                    if assignment1 == assignment2:
+                        variable1 = variable1.replace(" ", "")
+                        variable2 = variable2.replace(" ", "")
+                        for i in range(len(actionsElse)):
+                            actionsElse[i] = actionsElse[i].replace(variable2, variable1)
+    # We return the instruction blocks after the renaming process is done
+    return actionsThen, actionsElse
+
+
+'''Beginning of the program'''
+########################################################
+
+# Checking the number of arguments
+if len(sys.argv) == 2:
+    file_input = str(sys.argv[1])
+else:
     print "This program takes a .ll or .c file in input,"
     print "it should be used like:"
     print "python redundant-conditionals.py example.ll"
     exit(1)
 
 '''We check the input file'''
-if file_input[-3:]==".ll":
-    fname=file_input
-    isll=True
-elif file_input[-2:]==".c":
-    command = "clang -c -emit-llvm -S "+file_input + " -o lol_1664.ll"
-    os.system(command)
-    fname = "lol_1664.ll"
-    isll=False
-else :
+if file_input[-3:] == ".ll":
+    fname = file_input
+    isll = True
+elif file_input[-2:] == ".c":
+    if os.path.isfile(file_input):
+        command = "clang -c -emit-llvm -S " + file_input + " -o lol_1664.ll"
+        os.system(command)
+        fname = "lol_1664.ll"
+        isll = False
+    else:
+        print "Error: No such .c file"
+        exit(1)
+else:
     print "The input must be a .ll or a .c file"
     exit(1)
 
 '''Opening the file and getting the content'''
-with open(fname) as f:
-    content = f.readlines()
+try:
+    with open(fname) as f:
+        # We want to have the file line by line
+        content = f.readlines()
+# Handling the possible errors when opening a file
+except IOError as e:
+    print "Error: No such .ll file"
+    exit(1)
+except ValueError:
+    print "Could not convert data to an integer."
+    exit(1)
+except:
+    print "Unexpected error:", sys.exc_info()[0]
+    exit(1)
 content = [x.strip("\n") for x in content]
 
 '''Delete the .ll file created in the process if the input is a c file'''
-if not(isll) :
+if not (isll):
     os.system("rm lol_1664.ll")
 
 '''Finding identical if/then branches'''
-nbOfIdenticalLines=0
-actionsIfThen=[]
-actionsIfElse=[]
-nbLine=0
-while nbLine < len(content) :
-    #We look for the lines starting with "if.then"
+while nbLine < len(content):
+    # We look for the lines starting with "if.then"
     if content[nbLine][0:7] == "if.then":
-        #we then store all the actions executed in this block of instructions
-        nbLine+=1
-        lineFirstActionThen=nbLine
-        currentAction=[]
-        #We stop as soon as we hit the last line of the block
-        while content[nbLine+1]!="":
-            currentAction+=[content[nbLine]]
-            nbLine+=1
-        actionsIfThen+=[currentAction]
-        nbLine=nbLine+2
-        #If after the instruction block "if.then" there is an "if.else" block
-        #We also store the actions executed in this block
+        # we then store all the actions executed in this block of instructions
+        nbLine += 1
+        lineFirstActionThen = nbLine
+        currentAction = []
+        # We stop as soon as we hit the last line of the block
+        while content[nbLine + 1] != "":
+            currentAction += [content[nbLine]]
+            nbLine += 1
+        actionsIfThen += [currentAction]
+        nbLine = nbLine + 2
+        # If after the instruction block "if.then" there is an "if.else" block
+        # We also store the actions executed in this block
         if content[nbLine][0:7] == "if.else":
             nbLine += 1
             lineFirstActionElse = nbLine
             currentAction = []
-            while content[nbLine+1] != "":
+            while content[nbLine + 1] != "":
                 currentAction += [content[nbLine]]
                 nbLine += 1
             actionsIfElse += [currentAction]
-            nbLine = nbLine+2
-            #We check if we don't have the same actions if both blocks
-            for indexThen, instruction in enumerate(actionsIfThen[-1]):
-                #If it is the case we simply print the line
-                if (instruction in actionsIfElse[-1]):
-                    indexElse = actionsIfElse[-1].index(instruction)
-                    errorLineThen = lineFirstActionThen + indexThen
-                    errorLineElse = lineFirstActionElse + indexElse
-                    print "The instruction"
-                    print instruction
-                    print "is in both the if line",errorLineThen,"and the else line",errorLineElse,"in the LLVM IR file\n"
-                    nbOfIdenticalLines += 1
-        else :
-            actionsIfElse+=[]
+            nbLine = nbLine + 2
+            # Rename variable with the same value with the same name
+            actionsIfThen[-1], actionsIfElse[-1] = renameVariables(actionsIfThen[-1], actionsIfElse[-1])
+            # We check if we don't have the same actions if both blocks
+            testIdentical(actionsIfThen[-1], actionsIfElse[-1], lineFirstActionThen, lineFirstActionElse)
+        else:
+            actionsIfElse += [[""]]
     else:
-        nbLine+=1
+        nbLine += 1
 
-if nbOfIdenticalLines == 0 :
-    print "There is no identical lines in the if/else structure"
-else :
-    print "There is a total of",nbOfIdenticalLines,"identical lines"
+if nbOfIdenticalLines == 0:
+    print "There are no identical lines in the if/else structure"
+elif nbOfIdenticalLines == 1:
+    print "There is only one identical line"
+    x = redundancyFound[0]
+    print "Line", x[1]+1, "&", x[2]+1, ": ", x[0]
+else:
+    print "There is a total of", nbOfIdenticalLines, "identical lines"
+    for x in redundancyFound:
+        print "Line", x[1]+1, "&", x[2]+1, ": ", x[0]
 
-'''Debuggig functions'''
+'''Debugging functions'''
 
-#To print the actions with if.then
+
+########################################################
+
+# To print the actions with if.then
 def printActionsThen():
     for i in range(len(actionsIfThen)):
-        for x in actionsIfThen[i]:
-            print x
+        for action in actionsIfThen[i]:
+            print action
         print ""
     return
 
-#To print the actions with if.else
+
+# To print the actions with if.else
 def printActionsElse():
     for i in range(len(actionsIfElse)):
-        for x in actionsIfElse[i]:
-            print x
+        for action in actionsIfElse[i]:
+            print action
         print ""
     return
-
-'''Useless code ... for now'''
-
-"""
-#Writting back into the file
-txt='\n'.join(content)
-txt+="\n"
-f=open(fname,"w")
-f.write(txt)
-"""
