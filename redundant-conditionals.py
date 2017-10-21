@@ -21,7 +21,7 @@ import os
 
 # Number of identical line we have detected so far
 nbOfIdenticalLines = 0
-# The table of block of instructions executed in the different if.then branches
+# The table of tuples of block of instructions executed in the different if.then branches and their point of entry
 actionsIfThen = []
 # Same thing for the if.else branches
 actionsIfElse = []
@@ -39,15 +39,15 @@ redundancyFound = []  # (str instruction, int line in if.then, int line in if.el
 # actionsThen is a table of the instruction executed in the then branch
 # actionsElse is the same for the else branch
 # and we have the lines of the start of each block
-def testIdentical(actionsThen, actionsElse, lineFirstActionThen, lineFirstActionElse):
+def testIdentical(actionsThen, actionsElse, lineFirstActionThen, lineFirstActionElse, entryThen, entryElse):
     for indexThen, instruction in enumerate(actionsThen):
-        # If we have the same line we simply print the line
-        if instruction in actionsElse:
+        # If we have the same line we simply add it to our found lines
+        if instruction in actionsElse and entryThen == entryElse:
             indexElse = actionsElse.index(instruction)
             errorLineThen = lineFirstActionThen + indexThen
             errorLineElse = lineFirstActionElse + indexElse
             global redundancyFound
-            redundancyFound += [(instruction, errorLineThen, errorLineElse)]
+            redundancyFound += [(instruction, errorLineThen, errorLineElse, entryThen, entryElse)]
             global nbOfIdenticalLines
             nbOfIdenticalLines += 1
 
@@ -72,6 +72,28 @@ def renameVariables(actionsThen, actionsElse):
                             actionsElse[i] = actionsElse[i].replace(variable2, variable1)
     # We return the instruction blocks after the renaming process is done
     return actionsThen, actionsElse
+
+
+'''Debugging functions'''
+########################################################
+
+
+# To print the actions with if.then
+def printActionsThen():
+    for i in range(len(actionsIfThen)):
+        for action in actionsIfThen[i]:
+            print(action)
+        print("")
+    return
+
+
+# To print the actions with if.else
+def printActionsElse():
+    for i in range(len(actionsIfElse)):
+        for action in actionsIfElse[i]:
+            print(action)
+        print("")
+    return
 
 
 '''Beginning of the program'''
@@ -124,11 +146,13 @@ content = [x.strip("\n") for x in content]
 if not isll:
     os.system("rm lol_1664.ll")
 
-'''Finding identical if/then branches'''
+'''Finding all the if/then branches'''
 while nbLine < len(content):
     # We look for the lines starting with "if.then"
     if content[nbLine][0:7] == "if.then":
-        # we then store all the actions executed in this block of instructions
+        # We store the point of entry
+        [useless, pointOfEntry] = content[nbLine].split(" = ")
+        # We then store all the actions executed in this block of instructions
         nbLine += 1
         lineFirstActionThen = nbLine
         currentAction = []
@@ -136,55 +160,56 @@ while nbLine < len(content):
         while content[nbLine + 1] != "":
             currentAction += [content[nbLine]]
             nbLine += 1
-        actionsIfThen += [currentAction]
+        actionsIfThen += [[currentAction, pointOfEntry, lineFirstActionThen]]
         nbLine = nbLine + 2
         # If after the instruction block "if.then" there is an "if.else" block
         # We also store the actions executed in this block
-        if content[nbLine][0:7] == "if.else":
+    elif content[nbLine][0:7] == "if.else":
+        # We store the point of entry
+        [useless, pointOfEntry] = content[nbLine].split(" = ")
+        nbLine += 1
+        lineFirstActionElse = nbLine
+        currentAction = []
+        while content[nbLine + 1] != "":
+            currentAction += [content[nbLine]]
             nbLine += 1
-            lineFirstActionElse = nbLine
-            currentAction = []
-            while content[nbLine + 1] != "":
-                currentAction += [content[nbLine]]
-                nbLine += 1
-            actionsIfElse += [currentAction]
-            nbLine = nbLine + 2
-            # Rename variable with the same value with the same name
-            actionsIfThen[-1], actionsIfElse[-1] = renameVariables(actionsIfThen[-1], actionsIfElse[-1])
-            # We check if we don't have the same actions if both blocks
-            testIdentical(actionsIfThen[-1], actionsIfElse[-1], lineFirstActionThen, lineFirstActionElse)
-        else:
-            actionsIfElse += [[""]]
+        actionsIfElse += [[currentAction, pointOfEntry, lineFirstActionElse]]
+        nbLine = nbLine + 2
     else:
         nbLine += 1
 
+'''Reordering the corresponding if.then and if.else branches'''
+for indexThenBranch, thenBranch in enumerate(actionsIfThen):
+    found = False
+    for indexElseBranch, elseBranch in enumerate(actionsIfElse):
+        if elseBranch != [] and thenBranch[1] == elseBranch[1]:
+            if indexThenBranch >= len(actionsIfElse):
+                actionsIfElse += [[]]
+            buf = actionsIfElse[indexThenBranch]
+            actionsIfElse[indexThenBranch] = elseBranch
+            actionsIfElse[indexElseBranch] = buf
+            found = True
+    if not found:
+        actionsIfElse.insert(indexThenBranch, [])
+
+'''Detecting the identical branches'''
+for i in range(len(actionsIfThen)):
+    # If there is no if.else branch there can't be identical branches
+    if actionsIfElse[i] != []:
+        # Rename variable with the same value with the same name
+        actionsIfThen[i][0], actionsIfElse[i][0] = renameVariables(actionsIfThen[i][0], actionsIfElse[i][0])
+        # We check if we don't have the same actions if both blocks
+        testIdentical(actionsIfThen[i][0], actionsIfElse[i][0], actionsIfThen[i][2], actionsIfElse[i][2], actionsIfThen[i][1], actionsIfElse[i][1])
+
+'''Printing the results'''
 if nbOfIdenticalLines == 0:
     print("There are no identical lines in the if/else structure")
 elif nbOfIdenticalLines == 1:
     print("There is only one identical line")
     x = redundancyFound[0]
-    print("Line {} & {} : {}".format(x[1]+1,x[2]+1, x[0]))
+    print("Line {} & {} in {}: {}".format(x[1]+1, x[2]+1, x[3], x[0]))
 else:
-    print("There is a total of {} identical lines".format(nbOfIdenticalLines))
+    print("There is a total of {} identical lines\n".format(nbOfIdenticalLines))
     for x in redundancyFound:
-        print("Line {} & {} : {}".format(x[1] + 1, x[2] + 1, x[0]))
-
-'''Debugging functions'''
-########################################################
-
-# To print the actions with if.then
-def printActionsThen():
-    for i in range(len(actionsIfThen)):
-        for action in actionsIfThen[i]:
-            print(action)
-        print("")
-    return
-
-
-# To print the actions with if.else
-def printActionsElse():
-    for i in range(len(actionsIfElse)):
-        for action in actionsIfElse[i]:
-            print(action)
-        print("")
-    return
+        print("Line {} & {} in {}: {}".format(x[1] + 1, x[2] + 1, x[3], x[0]))
+exit(0)
